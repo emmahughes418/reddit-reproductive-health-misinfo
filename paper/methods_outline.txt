@@ -1,0 +1,111 @@
+Methods — Session Outline
+Reddit Reproductive Health Misinformation Project
+=================================================
+
+1. PROJECT SETUP
+- Python 3.13 venv at venv/; deps: requests, anthropic, pandas, python-dotenv
+- .env for API key (gitignored); folder structure per PROJECT_PLAN:
+  data/raw, data/processed, scripts, outputs, paper
+- Smoke test scripts/test_setup.py confirms env + Claude Haiku 4.5 connectivity
+
+2. CORPUS COLLECTION (scripts/scrape_reddit.py)
+- Source: PullPush API (api.pullpush.io) for post discovery; Reddit's anonymous
+  JSON endpoint (reddit.com/comments/{id}.json) for comment fetching.
+  - Switched to Reddit JSON for comments after finding PullPush's comment
+    archive is incomplete (returns 1-5 of what live threads show).
+- Subreddits: r/birthcontrol, r/sex, r/WomensHealth.
+  - Originally planned r/teenagers (0% pass rate due to keyword sparsity)
+    and r/ReproductiveHealth (does not exist on Reddit).
+- Time window: 12 months; 400 posts/subreddit target.
+- Filters:
+  - Drop posts where selftext in {[deleted], [removed], empty}.
+  - Engagement filter applied POST-HOC on actual fetched comments
+    (>=5 top-level comments) — PullPush's stored num_comments is unreliable
+    (snapshots taken at ingest time).
+  - Up to 25 top-level comments per post; drop deleted/removed comment bodies.
+- Rate limiting: 4-second per-request pacing; exponential backoff with
+  Retry-After header support; 429 retries [15s, 30s, 60s, 120s].
+- Result: 106 posts / 963 comments
+  -> data/raw/posts.csv, data/raw/comments.csv
+- Append helper: scripts/scrape_one_sub.py for adding individual subs without
+  re-scraping.
+
+3. BOT/AUTOMOD REMOVAL (scripts/filter_comments.py)
+- Exact-match exclude: AutoModerator, [deleted], *-ModTeam.
+- Avoided substring matching on "bot" (would hit human users like
+  Both-Performance7970).
+- Result: 193 removed -> 770 human comments
+  -> data/processed/comments_filtered.csv
+
+4. LLM CLAIM EXTRACTION & VERIFICATION (scripts/verify_claims.py)
+- Model: claude-haiku-4-5 via Anthropic Messages API.
+- System prompt (~21KB, prompt-cached): full text of medical_ground_truth.md
+  plus instructions defining:
+  - 4-class comment_type: claim_fact / personal_experience /
+    social_encouragement / other
+  - 6 category codes: EC, fertility, withdrawal, condoms, pill, outside
+  - 5 classification labels: ACCURATE, INACCURATE, PARTIALLY_ACCURATE,
+    NOT_APPLICABLE, OUTSIDE_GROUND_TRUTH
+  - Plus a hedged flag and a claim_text paraphrase.
+- Output: structured JSON, parsed and merged with original comment columns.
+- Iterative prompt refinement on a 10-comment test set:
+  1. Initial schema.
+  2. Added comment_type field with priority rule (claim_fact wins over
+     anecdotal framing when both present).
+  3. Added advice-framing clarification — assertions like "X causes Y"
+     embedded in advice still count as claims (fixed a misclassification on
+     "the pill increases your appetite").
+  4. Added Category 5 scoping note — general pill effectiveness claims
+     belong in `pill`, not `outside`.
+- Retry: 3 attempts, exponential backoff [2s, 5s, 15s], skip-on-failure.
+- Full run: 770 comments in 24 min, $0.95 total (cache hit ratio 98%);
+  0 permanent failures.
+- Result: data/processed/classified_claims.csv — 770 rows, 89 (12%)
+  classified as claim_fact.
+
+5. HAND VALIDATION
+- Sample builder (scripts/build_validation_sample.py): stratified random
+  sample (seed 42) — 15 ACCURATE, 14 INACCURATE (all available),
+  15 PARTIALLY_ACCURATE, 5 OUTSIDE_GROUND_TRUTH, 10 non-claim = 59 rows,
+  written with empty hand-rater columns to data/processed/validation_sample.csv.
+- 40 of 59 rows hand-validated using a binary `agreement` field.
+- Analysis (scripts/analyze_validation.py): per-stratum agreement rate,
+  disagreement export, Cohen's kappa scaffold (not computed —
+  my_classification not filled this round).
+- Result: 87.5% overall agreement (35/40)
+  - ACCURATE:                100% (13/13)
+  - non_claim:               100%  (5/5)
+  - OUTSIDE_GROUND_TRUTH:    100%  (2/2)
+  - PARTIALLY_ACCURATE:       86%  (6/7)
+  - INACCURATE (weakest):     69%  (9/13)
+- Disagreement pattern: 4 of 5 disagreements show the LLM applying the
+  perfect-use principle too aggressively, classifying hedged pill-effectiveness
+  claims as INACCURATE when a human would call them PARTIALLY_ACCURATE.
+  The INACCURATE rate is therefore a slight overestimate;
+  "not strictly accurate" (INACCURATE + PARTIALLY_ACCURATE) is the more
+  robust headline.
+- Disagreements saved to outputs/validation_disagreements.csv.
+
+6. AGGREGATE ANALYSIS (scripts/analyze.py)
+- Stdlib csv only (pandas hung on import mid-session — likely Google Drive
+  sync interaction with pandas 3.0.2 alpha; quarantined to this script).
+- Outputs:
+  - outputs/results_summary.txt — section-formatted stats: corpus by sub;
+    comment_type / category / classification distributions; cross-tab
+    classification x category; per-subreddit comparison; upvote analysis
+    (median/mean by class and by type); validation summary.
+  - outputs/example_claims.csv — top 2 INACCURATE / PARTIALLY_ACCURATE
+    comments per in-scope category by upvote score, for paper illustrations
+    (15 rows; 5 cells were sparse).
+
+KEY METHODOLOGICAL CHOICES TO DEFEND IN THE PAPER
+- Reddit JSON for comments, PullPush for posts — hybrid avoids both PullPush's
+  incomplete comment archive and Reddit's stricter post-search rate limits.
+- Engagement filter applied to retrieved comments, not stored num_comments —
+  PullPush stored counts are stale.
+- Bot exclusion via exact-match allowlist of mod-team patterns — substring
+  matching on "bot" produces false positives on human handles.
+- System-prompt caching keeps cost ~$1 instead of ~$50 across the 770-comment
+  corpus.
+- Validation reveals an LLM bias (over-strict on INACCURATE for hedged
+  claims); reported transparently in methods rather than hidden.

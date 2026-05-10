@@ -1,0 +1,114 @@
+Reddit Reproductive Health Misinformation — Analysis Summary
+Source: data/processed/classified_claims.csv  (770 comments)
+
+======================================================================
+1. CORPUS
+======================================================================
+  total comments: 770
+  r/WomensHealth            162  (21.0%)
+  r/birthcontrol            268  (34.8%)
+  r/sex                     340  (44.2%)
+
+======================================================================
+2. COMMENT_TYPE DISTRIBUTION (all comments)
+======================================================================
+  claim_fact                 86  (11.2%)
+  personal_experience       183  (23.8%)
+  social_encouragement      199  (25.8%)
+  other                     302  (39.2%)
+
+======================================================================
+3. CLAIM_FACT SUBSET — CATEGORY DISTRIBUTION
+======================================================================
+  claim_fact rows: 86
+  pill                       33  (38.4%)
+  EC                          7  (8.1%)
+  fertility                   5  (5.8%)
+  withdrawal                 10  (11.6%)
+  condoms                     3  (3.5%)
+  outside                    28  (32.6%)
+
+======================================================================
+4. CLAIM_FACT SUBSET — CLASSIFICATION DISTRIBUTION
+======================================================================
+  ACCURATE                   19  (22.1%)
+  INACCURATE                 14  (16.3%)
+  PARTIALLY_ACCURATE         24  (27.9%)
+  OUTSIDE_GROUND_TRUTH       29  (33.7%)
+
+======================================================================
+5. ACCURACY × CATEGORY (within claim_fact)
+======================================================================
+  Rows = category, columns = classification (% within category row)
+  category        ACCURA  INACCU  PARTIA  OUTSID  total
+  pill             24.2%   18.2%   51.5%    6.1%  33
+  EC               28.6%   57.1%   14.3%    0.0%  7
+  fertility        20.0%   40.0%   40.0%    0.0%  5
+  withdrawal       60.0%   10.0%   30.0%    0.0%  10
+  condoms          66.7%    0.0%   33.3%    0.0%  3
+  outside           0.0%    3.6%    0.0%   96.4%  28
+
+======================================================================
+6. PER-SUBREDDIT COMPARISON
+======================================================================
+
+  r/WomensHealth  (n=162)
+    comment_type:
+    claim_fact                  6  (3.7%)
+    personal_experience        59  (36.4%)
+    social_encouragement       41  (25.3%)
+    other                      56  (34.6%)
+    claim_fact accuracy (n=6):
+    OUTSIDE_GROUND_TRUTH        6  (100.0%)
+
+  r/birthcontrol  (n=268)
+    comment_type:
+    claim_fact                 78  (29.1%)
+    personal_experience        88  (32.8%)
+    social_encouragement       67  (25.0%)
+    other                      35  (13.1%)
+    claim_fact accuracy (n=78):
+    ACCURATE                   18  (23.1%)
+    INACCURATE                 14  (17.9%)
+    PARTIALLY_ACCURATE         24  (30.8%)
+    OUTSIDE_GROUND_TRUTH       22  (28.2%)
+
+  r/sex  (n=340)
+    comment_type:
+    claim_fact                  2  (0.6%)
+    personal_experience        36  (10.6%)
+    social_encouragement       91  (26.8%)
+    other                     211  (62.1%)
+    claim_fact accuracy (n=2):
+    ACCURATE                    1  (50.0%)
+    OUTSIDE_GROUND_TRUTH        1  (50.0%)
+
+======================================================================
+7. UPVOTE ANALYSIS
+======================================================================
+  By classification (within claim_fact):
+    class                     n   median     mean
+    ACCURATE                 19      6.0    27.26
+    INACCURATE               14      3.0     4.36
+    PARTIALLY_ACCURATE       24      3.5     7.79
+    OUTSIDE_GROUND_TRUTH     29      5.0    17.52
+
+  By comment_type (all comments):
+    type                      n   median     mean
+    claim_fact               86      4.0    14.81
+    personal_experience     183      3.0    16.43
+    social_encouragement    199      4.0    16.46
+    other                   302      3.0    26.87
+
+======================================================================
+8. VALIDATION (hand-labeled stratified sample)
+======================================================================
+  validated rows: 40
+  overall agreement: 35/40 = 87.5%
+  by LLM stratum:
+    ACCURATE               13/13 = 100.0%
+    INACCURATE             9/13 = 69.2%
+    PARTIALLY_ACCURATE     6/7 = 85.7%
+    OUTSIDE_GROUND_TRUTH   2/2 = 100.0%
+    non_claim              5/5 = 100.0%
+  Cohen's kappa: not computable (my_classification column not filled in this round)
